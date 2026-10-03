@@ -92,5 +92,5 @@ noctalia.state.watch("coinLogo", function(value)
 end)
 
 function onClick()
-  noctalia.togglePanel("humblemane/hyprprice:chart")
+  noctalia.togglePanel("humblemane/pricebar:chart")
 end

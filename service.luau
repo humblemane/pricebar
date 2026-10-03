@@ -122,6 +122,8 @@ local function publishSeries(closes, baseline)
   end
 end
 
+local fetchAll -- defined below; fetchPrice calls it when falling back to USD
+
 local function fetchPrice()
   local coin = findCoin(coinId)
   if not coin then
@@ -140,14 +142,22 @@ local function fetchPrice()
     end
 
     if not res.ok then
-      noctalia.log(`humblemane/hyprprice: price request failed status={res.status}`)
+      noctalia.log(`humblemane/pricebar: price request failed status={res.status}`)
       noctalia.state.set("error", true)
       return
     end
 
     local decoded = noctalia.json.decode(res.body)
+    if decoded and decoded.error and #decoded.error > 0 and requestCurrency ~= "usd"
+      and string.find(res.body, "Unknown asset pair", 1, true) then
+      -- This asset isn't listed in that currency: fall back to USD and say so.
+      currency = "usd"
+      noctalia.state.set("notice", { text = `{string.upper(requestCurrency)} isn't available for {coin.symbol}`, at = os.time() })
+      fetchAll()
+      return
+    end
     if not decoded or (decoded.error and #decoded.error > 0) then
-      noctalia.log(`humblemane/hyprprice: price error for {pair}: {res.body}`)
+      noctalia.log(`humblemane/pricebar: price error for {pair}: {res.body}`)
       noctalia.state.set("error", true)
       return
     end
@@ -156,7 +166,7 @@ local function fetchPrice()
     local price = ticker and ticker.c and tonumber(ticker.c[1])
 
     if not price then
-      noctalia.log(`humblemane/hyprprice: unexpected ticker payload: {res.body}`)
+      noctalia.log(`humblemane/pricebar: unexpected ticker payload: {res.body}`)
       noctalia.state.set("error", true)
       return
     end
@@ -191,13 +201,13 @@ local function fetchHistory()
     end
 
     if not res.ok then
-      noctalia.log(`humblemane/hyprprice: history request failed status={res.status}`)
+      noctalia.log(`humblemane/pricebar: history request failed status={res.status}`)
       return
     end
 
     local decoded = noctalia.json.decode(res.body)
     if not decoded or (decoded.error and #decoded.error > 0) then
-      noctalia.log(`humblemane/hyprprice: history error for {pair}: {res.body}`)
+      noctalia.log(`humblemane/pricebar: history error for {pair}: {res.body}`)
       return
     end
 
@@ -212,7 +222,7 @@ local function fetchHistory()
     end
 
     if not candles or #candles == 0 then
-      noctalia.log(`humblemane/hyprprice: unexpected OHLC payload: {res.body}`)
+      noctalia.log(`humblemane/pricebar: unexpected OHLC payload: {res.body}`)
       return
     end
 
@@ -231,7 +241,7 @@ local YAHOO_RANGES = {
   ["7d"] = { range = "5d", interval = "30m" },
   ["30d"] = { range = "1mo", interval = "1d" },
 }
-local YAHOO_HEADERS = { "Accept: application/json", "User-Agent: Mozilla/5.0 (X11; Linux x86_64) HyprPrice/1.0" }
+local YAHOO_HEADERS = { "Accept: application/json", "User-Agent: Mozilla/5.0 (X11; Linux x86_64) PriceBar/1.0" }
 
 local function doFetchStock(mult, quoteCurrency)
   local coin = findCoin(coinId)
@@ -254,7 +264,7 @@ local function doFetchStock(mult, quoteCurrency)
     end
 
     if not res.ok then
-      noctalia.log(`humblemane/hyprprice: stock request failed status={res.status}`)
+      noctalia.log(`humblemane/pricebar: stock request failed status={res.status}`)
       noctalia.state.set("error", true)
       return
     end
@@ -265,7 +275,7 @@ local function doFetchStock(mult, quoteCurrency)
     local price = meta and tonumber(meta.regularMarketPrice)
 
     if not price then
-      noctalia.log(`humblemane/hyprprice: unexpected stock payload: {string.sub(res.body, 1, 300)}`)
+      noctalia.log(`humblemane/pricebar: unexpected stock payload: {string.sub(res.body, 1, 300)}`)
       noctalia.state.set("error", true)
       return
     end
@@ -314,13 +324,13 @@ local function fetchStock()
       fxFetchedAt = os.time()
       doFetchStock(usdToEur, "eur")
     else
-      noctalia.log("humblemane/hyprprice: EUR/USD rate unavailable, showing USD")
+      noctalia.log("humblemane/pricebar: EUR/USD rate unavailable, showing USD")
       doFetchStock(1, "usd")
     end
   end)
 end
 
-local function fetchAll()
+function fetchAll()
   publishCoinMeta()
   noctalia.state.set("range", range)
   local coin = findCoin(coinId)

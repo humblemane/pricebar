@@ -25,5 +25,5 @@ body:
     id: logs
     attributes:
       label: Log lines
-      description: "Output of `grep hyprprice ~/.cache/noctalia/noctalia.log | tail -30`"
+      description: "Output of `grep pricebar ~/.cache/noctalia/noctalia.log | tail -30`"
       render: text

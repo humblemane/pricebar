@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline consistency checks for HyprPrice. Run from anywhere: python3 tools/check.py
+"""Offline consistency checks for PriceBar. Run from anywhere: python3 tools/check.py
 
 Verifies the manifest, translations, asset list and logo attribution agree with
 each other. It makes no network calls; use the curl commands in the README to

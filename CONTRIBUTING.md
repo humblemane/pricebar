@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping. HyprPrice is a small [Noctalia](https://noctalia.dev) plugin written in
+Thanks for helping. PriceBar is a small [Noctalia](https://noctalia.dev) plugin written in
 [Luau](https://luau.org); bug reports, new assets and fixes are all welcome.
 
 ## Layout
@@ -21,8 +21,8 @@ with `noctalia msg plugin …` (see the IPC section of the README).
 ## Develop
 
 ```sh
-git clone https://github.com/humblemane/hyprprice ~/.local/share/noctalia/plugins/hyprprice
-noctalia msg plugins enable humblemane/hyprprice
+git clone https://github.com/humblemane/pricebar ~/.local/share/noctalia/plugins/pricebar
+noctalia msg plugins enable humblemane/pricebar
 ```
 
 Edits to `.luau` files hot-reload; after changing `plugin.toml` run `noctalia msg config-reload`. Before opening a PR:
@@ -32,7 +32,7 @@ noctalia plugins lint .
 python3 tools/check.py
 ```
 
-Service logs go to `~/.cache/noctalia/noctalia.log` (search for `hyprprice`).
+Service logs go to `~/.cache/noctalia/noctalia.log` (search for `pricebar`).
 
 ## Adding a coin or stock
 

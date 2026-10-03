@@ -23,6 +23,7 @@ local history = noctalia.state.get("history") or {}
 local historyPrices = noctalia.state.get("historyPrices") or {}
 local hoverText = nil
 local updatedAt = noctalia.state.get("updatedAt")
+local notice = noctalia.state.get("notice")
 local hasError = noctalia.state.get("error") or false
 local range = noctalia.state.get("range") or "24h"
 local RANGE_OPTIONS = { "24h", "7d", "30d" }
@@ -30,6 +31,7 @@ local RANGE_OPTIONS = { "24h", "7d", "30d" }
 local searchQuery = ""
 local searchResults = {}
 local searchInputGen = 0
+local searchOpen = false
 local resultsGen = 0
 
 local function formatPrice(value: number, cur: string): string
@@ -76,14 +78,22 @@ local function selectCoin(id: string)
   coinId = id
   searchQuery = ""
   searchResults = {}
+  searchOpen = false
   searchInputGen += 1
   resultsGen += 1
-  noctalia.runAsync({ "noctalia", "msg", "plugin", "humblemane/hyprprice:service", "all", "set_coin", id })
+  noctalia.runAsync({ "noctalia", "msg", "plugin", "humblemane/pricebar:service", "all", "set_coin", id })
 end
 
 local function isStock()
   local coin = findCoin(coinId)
   return coin ~= nil and coin.kind == "stock"
+end
+
+local function noticeText()
+  if type(notice) == "table" and os.time() - notice.at < 6 then
+    return notice.text
+  end
+  return nil
 end
 
 local function agoText()
@@ -134,93 +144,108 @@ local function render()
       controlSize = "sm",
       selected = r == range,
       onClick = function()
-        noctalia.runAsync({ "noctalia", "msg", "plugin", "humblemane/hyprprice:service", "all", "set_range", r })
+        noctalia.runAsync({ "noctalia", "msg", "plugin", "humblemane/pricebar:service", "all", "set_range", r })
       end,
     })
   end
 
-  panel.render(ui.column({ flexGrow = 1, gap = 12 }, {
+  local body = {
     ui.row({ align = "center", justify = "space_between", gap = 8 }, {
       ui.row({ align = "center", gap = 8 }, {
         coinLogo ~= "" and ui.image({ path = coinLogo, width = 24, height = 24, fit = "contain" })
           or ui.label({ text = coinSymbol, fontSize = 12, fontWeight = "bold", color = coinColor }),
-        ui.label({ text = coinName, fontSize = 16, fontWeight = "bold", color = "on_surface" }),
+        ui.label({ text = coinName, fontSize = 15, fontWeight = "bold", color = "on_surface", maxWidth = 130, maxLines = 1 }),
       }),
       ui.row({ gap = 4 }, {
-        ui.button({
-          text = string.upper(currency),
-          tooltip = "Switch USD / EUR",
-          variant = "ghost",
-          onClick = "onCurrencyClicked",
-        }),
         ui.button({ glyph = "refresh", tooltip = "Refresh now", variant = "ghost", onClick = "onRefreshClicked" }),
+        ui.button({
+          glyph = "search",
+          tooltip = "Search coins & stocks",
+          variant = "ghost",
+          selected = searchOpen,
+          onClick = "onSearchToggle",
+        }),
         ui.button({ glyph = "close", onClick = "onCloseClicked" }),
       }),
     }),
-
     ui.column({ gap = 2 }, {
-      ui.label({
-        text = type(price) == "number" and formatPrice(price, currency) or "…",
-        fontSize = 28,
-        fontWeight = "bold",
-        color = "on_surface",
+      ui.row({
+        gap = 8,
+        align = "center",
+        tooltip = "Click to switch USD / EUR",
+        onClick = "onCurrencyClicked",
+      }, {
+        ui.label({
+          text = type(price) == "number" and formatPrice(price, currency) or "…",
+          fontSize = 26,
+          fontWeight = "bold",
+          color = "on_surface",
+        }),
+        ui.label({ text = string.upper(currency), fontSize = 12, color = "on_surface_variant" }),
       }),
       ui.label({ text = changeText, color = changeColor }),
-      ui.label({ text = agoText(), color = hasError and "#FF5252" or "on_surface_variant", fontSize = 12 }),
+      ui.label({
+        text = hoverText and `At cursor: {hoverText}` or noticeText() or agoText(),
+        color = hoverText and "on_surface" or (noticeText() and "#FFB020" or (hasError and "#FF5252" or "on_surface_variant")),
+        fontSize = 12,
+      }),
     }),
+  }
 
-    ui.graph({
-      values = history,
-      color = coinColor,
-      lineWidth = 2,
-      fillOpacity = 0.15,
-      height = 90,
-      onPointerMove = "onGraphMove",
-      onPointerLeave = "onGraphLeave",
-    }),
-
-    ui.row({ gap = 4 }, rangeButtons),
-
-    ui.label({
-      text = hoverText or `Last {range} · hover the chart to inspect`,
-      color = "on_surface_variant",
-      fontSize = 12,
-    }),
-
-    ui.separator({}),
-
-    ui.input({
+  if searchOpen then
+    -- Dropdown search: the box and about three results replace the chart.
+    body[#body + 1] = ui.input({
       key = `search-{searchInputGen}`,
       placeholder = "Search coins & stocks…",
+      focus = true,
       onChange = "onSearchChanged",
-    }),
-
-    ui.scroll({
+    })
+    body[#body + 1] = ui.scroll({
       key = `results-{resultsGen}`,
       flexGrow = 1,
       minHeight = 90,
       gap = 2,
       align = "stretch",
-    }, resultRows),
+    }, #resultRows > 0 and resultRows or {
+      ui.label({
+        text = searchQuery == "" and "Type to search 33 coins and 52 stocks" or "No matches",
+        color = "on_surface_variant",
+        fontSize = 12,
+      }),
+    })
+  else
+    body[#body + 1] = ui.graph({
+      values = history,
+      color = coinColor,
+      lineWidth = 2,
+      fillOpacity = 0.15,
+      flexGrow = 1,
+      minHeight = 60,
+      onPointerMove = "onGraphMove",
+      onPointerLeave = "onGraphLeave",
+    })
+    body[#body + 1] = ui.row({ gap = 4 }, rangeButtons)
+  end
 
-    ui.row({ gap = 8 }, {
-      ui.button({
-        glyph = coinId == defaultCoin and "star-filled" or "star",
-        text = coinId == defaultCoin and "Default" or "Set as default",
-        variant = "outline",
-        selected = coinId == defaultCoin,
-        flexGrow = 1,
-        onClick = "onSetDefaultClicked",
-      }),
-      ui.button({
-        text = isStock() and "Yahoo Finance" or "Kraken",
-        glyph = "external-link",
-        variant = "outline",
-        flexGrow = 1,
-        onClick = "onOpenExchange",
-      }),
+  body[#body + 1] = ui.row({ gap = 8 }, {
+    ui.button({
+      glyph = coinId == defaultCoin and "star-filled" or "star",
+      text = coinId == defaultCoin and "Default" or "Set default",
+      variant = "outline",
+      selected = coinId == defaultCoin,
+      flexGrow = 1,
+      onClick = "onSetDefaultClicked",
     }),
-  }))
+    ui.button({
+      text = isStock() and "Yahoo" or "Kraken",
+      glyph = "external-link",
+      variant = "outline",
+      flexGrow = 1,
+      onClick = "onOpenExchange",
+    }),
+  })
+
+  panel.render(ui.column({ flexGrow = 1, gap = 8 }, body))
 end
 
 noctalia.state.watch("defaultCoin", function(value)
@@ -273,6 +298,11 @@ noctalia.state.watch("range", function(value)
   render()
 end)
 
+noctalia.state.watch("notice", function(value)
+  notice = value
+  render()
+end)
+
 noctalia.state.watch("updatedAt", function(value)
   updatedAt = value
   render()
@@ -294,6 +324,18 @@ end)
 
 function onOpen(_context)
   panel.setWantsSecondTicks(true)
+  searchOpen = false
+  searchQuery = ""
+  searchResults = {}
+  render()
+end
+
+function onSearchToggle()
+  searchOpen = not searchOpen
+  searchQuery = ""
+  searchResults = {}
+  searchInputGen += 1
+  resultsGen += 1
   render()
 end
 
@@ -303,7 +345,7 @@ end
 
 function onCurrencyClicked()
   local target = currency == "usd" and "eur" or "usd"
-  noctalia.runAsync({ "noctalia", "msg", "plugin", "humblemane/hyprprice:service", "all", "set_currency", target })
+  noctalia.runAsync({ "noctalia", "msg", "plugin", "humblemane/pricebar:service", "all", "set_currency", target })
 end
 
 function onSearchChanged(value)
@@ -330,7 +372,7 @@ function onGraphLeave()
 end
 
 function onRefreshClicked()
-  noctalia.runAsync({ "noctalia", "msg", "plugin", "humblemane/hyprprice:service", "all", "refresh" })
+  noctalia.runAsync({ "noctalia", "msg", "plugin", "humblemane/pricebar:service", "all", "refresh" })
 end
 
 function onOpenExchange()
@@ -346,7 +388,7 @@ end
 
 function onSetDefaultClicked()
   if coinId ~= defaultCoin then
-    noctalia.runAsync({ "noctalia", "msg", "plugin", "humblemane/hyprprice:service", "all", "set_default", coinId })
+    noctalia.runAsync({ "noctalia", "msg", "plugin", "humblemane/pricebar:service", "all", "set_default", coinId })
   end
 end
 

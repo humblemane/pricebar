@@ -1,6 +1,17 @@
 # Changelog
 
-All notable changes to HyprPrice. This project follows [Semantic Versioning](https://semver.org).
+All notable changes to PriceBar (formerly HyprPrice). This project follows [Semantic Versioning](https://semver.org).
+
+## 2.0.0
+
+- **Renamed from HyprPrice to PriceBar.** The plugin ID is now `humblemane/pricebar` and the repository is
+  `github.com/humblemane/pricebar`. Existing setups need the new ID in the bar layout (`humblemane/pricebar:price`),
+  in `noctalia msg` commands and in keybinds.
+- Smaller panel (320×320). Search is now a magnifier button in the header that opens a dropdown of results.
+- Click the price to switch between USD and EUR. An asset with no EUR pair on Kraken falls back to USD and shows a
+  notice instead of `--`.
+- Monero now uses the official full-color symbol from the Monero press kit.
+- New panel screenshot and store thumbnail.
 
 ## 1.3.2
 
